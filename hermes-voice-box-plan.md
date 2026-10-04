@@ -30,14 +30,14 @@
 
 ## 2. สิ่งที่ต้องยืนยันก่อนเขียนโค้ด (Phase 0)
 
-| เรื่อง | วิธีเช็ค |
-|---|---|
-| ขนาดแฟลชและ PSRAM | `esptool.py flash_id` และดู log ตอนบูต (`PSRAM: 8MB`) |
+| เรื่อง                                    | วิธีเช็ค                                                                                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| ขนาดแฟลชและ PSRAM                         | `esptool.py flash_id` และดู log ตอนบูต (`PSRAM: 8MB`)                                                   |
 | ขาจอ, I2S, I2C ของ codec, ปุ่ม, backlight | ดูโฟลเดอร์ board ของ SpotPear 1.54 ใน repo `78/xiaozhi-esp32` (`main/boards/`) แล้วคัดลอก pin map มาใช้ |
-| ชิป audio codec | I2C scan (ES8311 ปกติอยู่ที่ address `0x18`) |
-| ไดรเวอร์จอ | น่าจะเป็น ST7789 ให้ยืนยันจาก board config ด้านบน |
-| ปุ่ม | BOOT = GPIO0, PWR (ดูว่าต่อเข้า GPIO ไหนหรือเป็นปุ่มฮาร์ดแวร์) |
-| ขาที่ว่าง | IO39, IO40, IO43, IO44, RGB LED ที่ IO48 |
+| ชิป audio codec                           | I2C scan (ES8311 ปกติอยู่ที่ address `0x18`)                                                            |
+| ไดรเวอร์จอ                                | น่าจะเป็น ST7789 ให้ยืนยันจาก board config ด้านบน                                                       |
+| ปุ่ม                                      | BOOT = GPIO0, PWR (ดูว่าต่อเข้า GPIO ไหนหรือเป็นปุ่มฮาร์ดแวร์)                                          |
+| ขาที่ว่าง                                 | IO39, IO40, IO43, IO44, RGB LED ที่ IO48                                                                |
 
 **ผลลัพธ์ที่ต้องได้:** ไฟล์ `firmware/main/board_config.h` ที่รวม pin ทั้งหมดไว้ในที่เดียว
 
@@ -124,6 +124,7 @@ void        app_event_loop_task(void *arg); // รับ event จาก wifi/ws
 ## 6. ฟีเจอร์ 1: Wi-Fi + QR Code (`wifi_mgr`)
 
 ### Logic
+
 1. ตอนบูต อ่าน SSID/รหัสผ่านจาก NVS
 2. **ถ้ามีค่า** → ลองเชื่อมต่อ (timeout 20 วิ, retry 3 ครั้ง)
    - เชื่อมได้ → **ไม่แสดง QR** และไปที่ `BRIDGE_CONNECTING` ทันที
@@ -133,6 +134,7 @@ void        app_event_loop_task(void *arg); // รับ event จาก wifi/ws
 5. ถ้าเน็ตหลุดระหว่างใช้งาน ให้ reconnect อัตโนมัติก่อน ถ้าเกิน 60 วิแล้วยังต่อไม่ได้ ค่อยแสดงหน้าจอเตือน (ไม่ต้องกลับไปโหมด QR อัตโนมัติ เพราะ router อาจแค่รีบูตอยู่)
 
 ### โหมดตั้งค่า (SoftAP + Captive Portal + QR)
+
 - เปิด AP ชื่อ `HermesBox-XXXX` (XXXX = 4 หลักท้ายของ MAC) พร้อมรหัสผ่านแบบสุ่ม 8 ตัว
 - **หน้าจอ QR #1:** `WIFI:T:WPA;S:HermesBox-XXXX;P:<รหัส>;;` สแกนแล้วมือถือจะเข้า AP ให้เอง
 - เปิด DNS captive portal ให้มือถือเด้งหน้าตั้งค่าขึ้นมาเอง (สำรอง: **QR #2** = `http://192.168.4.1`)
@@ -141,6 +143,7 @@ void        app_event_loop_task(void *arg); // รับ event จาก wifi/ws
 - ใช้ไลบรารี QR: `espressif/qrcode` (component) หรือ `lv_qrcode` ของ LVGL
 
 ### ฟังก์ชัน
+
 ```c
 esp_err_t wifi_mgr_init(void);
 bool      wifi_mgr_has_credentials(void);
@@ -163,22 +166,27 @@ void      wifi_mgr_start_mdns(const char *hostname); // hermes-box.local
 รองรับ 2 แบบ:
 
 ### A) Push: จาก Mac ส่งตรงเข้าบอร์ด (ใช้ตอนพัฒนา)
+
 - บอร์ดเปิด HTTP endpoint `POST http://hermes-box.local/ota` (header `X-OTA-Token`)
 - รับไฟล์ `.bin` แบบ stream → `esp_ota_begin/write/end` → `esp_ota_set_boot_partition` → รีบูต
 - คำสั่งที่ Claude Code ใช้หลัง build:
+
 ```bash
 idf.py build
 curl -X POST --data-binary @build/hermes_voice_box.bin \
      -H "X-OTA-Token: $OTA_TOKEN" http://hermes-box.local/ota
 ```
+
 - เขียนเป็นสคริปต์ `tools/ota_push.sh` ไว้
 
 ### B) Pull: บอร์ดดึงจาก Pi (ใช้งานจริง)
+
 - Pi ให้บริการไฟล์ `manifest.json` → `{"version":"1.2.0","url":"http://pi.local:8765/fw/1.2.0.bin","sha256":"..."}`
 - บอร์ดเช็คตอนบูตและทุก 6 ชม. หรือเมื่อ bridge ส่งคำสั่ง `{"type":"ota_check"}`
 - ใช้ `esp_https_ota` (ถ้าใช้ HTTP ใน LAN ต้องเปิด `CONFIG_ESP_HTTPS_OTA_ALLOW_HTTP`)
 
 ### ความปลอดภัยและการกันบอร์ดพัง
+
 - เปิด `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`
 - เฟิร์มแวร์ใหม่ต้องเรียก `esp_ota_mark_app_valid_cancel_rollback()` **หลังจาก** ต่อ Wi-Fi และ bridge ได้แล้วเท่านั้น ถ้าไม่ผ่านภายใน 60 วิ → รีบูตแล้วย้อนกลับเวอร์ชันเดิมอัตโนมัติ
 - ตรวจ SHA-256 ของไฟล์ก่อนสลับ partition
@@ -186,6 +194,7 @@ curl -X POST --data-binary @build/hermes_voice_box.bin \
 - หน้าจอ: แสดงแถบ progress ระหว่าง OTA
 
 ### ฟังก์ชัน
+
 ```c
 esp_err_t ota_mgr_init(void);                         // เช็ค rollback state
 esp_err_t ota_mgr_start_push_server(void);            // POST /ota
@@ -202,29 +211,37 @@ void      ota_mgr_on_progress(void (*cb)(int pct));   // ส่งให้ UI
 ## 8. ฟีเจอร์ 3: เชื่อมต่อกับ Hermes บน Pi 4
 
 ### 8.1 เปิด API server ของ Hermes (ทำบน Pi)
+
 เพิ่มใน `~/.hermes/.env`:
+
 ```env
 API_SERVER_ENABLED=true
 API_SERVER_KEY=<สุ่มอย่างน้อย 16 ตัวอักษร>
 # API_SERVER_HOST=127.0.0.1   (ค่า default: ฟังแค่ในเครื่อง ซึ่งเหมาะแล้ว เพราะ bridge อยู่บน Pi เครื่องเดียวกัน)
 # API_SERVER_PORT=8642
 ```
+
 แล้วรัน:
+
 ```bash
 hermes gateway
 # ต้องเห็น: [API Server] API server listening on http://127.0.0.1:8642
 ```
+
 ทดสอบ:
+
 ```bash
 curl http://127.0.0.1:8642/v1/chat/completions \
   -H "Authorization: Bearer $API_SERVER_KEY" -H "Content-Type: application/json" \
   -d '{"model":"hermes-agent","messages":[{"role":"user","content":"สวัสดี"}]}'
 ```
+
 ทำ `hermes gateway` เป็น systemd service ให้รันตลอด (หรืออย่างน้อยรันไว้ใน tmux)
 
 > Claude Code: ตรวจกับเอกสาร Hermes เวอร์ชันที่ติดตั้งอยู่จริงอีกครั้ง (`hermes --version` และหน้า docs “API Server”) เพราะชื่อ env หรือ endpoint อาจเปลี่ยนไปตามเวอร์ชัน
 
 ### 8.2 การจำบทสนทนา
+
 - **แนะนำ:** ใช้ **Responses API** (`POST /v1/responses`) แล้วส่ง `previous_response_id` จากรอบก่อน ให้ Hermes เก็บประวัติเองฝั่ง server
 - หรือใช้ Chat Completions แล้วให้ bridge เก็บ `messages` เองต่อหนึ่งอุปกรณ์
 - เริ่มบทสนทนาใหม่เมื่อเงียบไปเกิน 10 นาที หรือเมื่อกดปุ่ม PWR สั้น ๆ 2 ครั้ง
@@ -232,22 +249,24 @@ curl http://127.0.0.1:8642/v1/chat/completions \
 ### 8.3 Voice Bridge (`bridge/`, Python บน Pi)
 
 **Pipeline ต่อหนึ่งรอบการคุย:**
+
 1. รับ PCM 16kHz/16-bit/mono จากบอร์ด จนได้ `listen_stop`
 2. **STT** → ได้ข้อความ → ส่ง `{"type":"stt","text":...}` กลับไปให้บอร์ดแสดงเป็น subtitle
-3. ส่งข้อความเข้า Hermes แบบ **stream** พร้อมคำสั่งเสริม: *"ตอบเป็นภาษาพูด สั้น กระชับ ไม่ใช้ markdown หรือ emoji"*
+3. ส่งข้อความเข้า Hermes แบบ **stream** พร้อมคำสั่งเสริม: _"ตอบเป็นภาษาพูด สั้น กระชับ ไม่ใช้ markdown หรือ emoji"_
 4. ตัดข้อความเป็นประโยค (เมื่อเจอ `.` `?` `!` ช่องว่างยาว หรือขึ้นบรรทัดใหม่) → **TTS ทีละประโยค** → stream เสียงกลับทันที (ผู้ใช้จะได้ยินเสียงเร็วขึ้น ไม่ต้องรอจนตอบครบ)
 5. ลบ markdown/emoji ออกก่อนส่งเข้า TTS
 
 **ตัวเลือก STT/TTS (ภาษาไทย):**
 
-| | Local (ฟรี, ไม่ต้องใช้เน็ต) | Cloud (เร็ว, คุณภาพดี) |
-|---|---|---|
-| STT | faster-whisper `base`/`small` (Pi 4 ช้า: ใช้เวลาหลายวินาที) | Groq Whisper / OpenAI Whisper |
-| TTS | Piper (ต้องเช็คก่อนว่ามีเสียงไทยหรือไม่) | edge-tts (`th-TH-PremwadeeNeural`, `th-TH-NiwatNeural`), OpenAI TTS |
+|     | Local (ฟรี, ไม่ต้องใช้เน็ต)                                 | Cloud (เร็ว, คุณภาพดี)                                              |
+| --- | ----------------------------------------------------------- | ------------------------------------------------------------------- |
+| STT | faster-whisper `base`/`small` (Pi 4 ช้า: ใช้เวลาหลายวินาที) | Groq Whisper / OpenAI Whisper                                       |
+| TTS | Piper (ต้องเช็คก่อนว่ามีเสียงไทยหรือไม่)                    | edge-tts (`th-TH-PremwadeeNeural`, `th-TH-NiwatNeural`), OpenAI TTS |
 
 → **เริ่มด้วย cloud ก่อน** ให้ระบบทำงานครบ แล้วค่อยลอง local ทีหลัง ทำเป็น interface ให้สลับได้ใน `config.yaml`
 
 **ฟังก์ชันฝั่ง Python:**
+
 ```python
 # bridge.py
 async def ws_handler(ws)                       # 1 connection ต่อ 1 อุปกรณ์, ตรวจ token ใน hello
@@ -263,26 +282,28 @@ class HermesClient:
     async def ask_stream(text: str, session_id: str) -> AsyncIterator[str]
     def reset(session_id: str)
 ```
+
 ใช้ `openai` SDK โดยตั้ง `base_url="http://127.0.0.1:8642/v1"`, `api_key=API_SERVER_KEY`, `model="hermes-agent"`
 
 ### 8.4 Protocol บอร์ด ↔ Bridge (WebSocket `ws://<pi>:8765/ws`)
 
-| ทิศทาง | ข้อความ | ความหมาย |
-|---|---|---|
-| ESP→Pi | `{"type":"hello","device_id","fw_version","token"}` | เริ่ม session |
-| ESP→Pi | `{"type":"listen_start"}` / binary PCM / `{"type":"listen_stop"}` | ส่งเสียงพูด |
-| ESP→Pi | `{"type":"abort"}` | ผู้ใช้กดปุ่มขัดจังหวะ |
-| Pi→ESP | `{"type":"stt","text"}` | ข้อความที่ฟังได้ |
-| Pi→ESP | `{"type":"state","value":"thinking"}` | ให้บอร์ดเปลี่ยนอนิเมชัน |
-| Pi→ESP | `{"type":"tts_start"}` / binary PCM / `{"type":"tts_end"}` | เสียงตอบ |
-| Pi→ESP | `{"type":"reply_text","text"}` | ข้อความคำตอบ (ไว้แสดง subtitle) |
-| Pi→ESP | `{"type":"ota_check"}` / `{"type":"error","msg"}` | คำสั่งอื่น ๆ |
+| ทิศทาง | ข้อความ                                                           | ความหมาย                        |
+| ------ | ----------------------------------------------------------------- | ------------------------------- |
+| ESP→Pi | `{"type":"hello","device_id","fw_version","token"}`               | เริ่ม session                   |
+| ESP→Pi | `{"type":"listen_start"}` / binary PCM / `{"type":"listen_stop"}` | ส่งเสียงพูด                     |
+| ESP→Pi | `{"type":"abort"}`                                                | ผู้ใช้กดปุ่มขัดจังหวะ           |
+| Pi→ESP | `{"type":"stt","text"}`                                           | ข้อความที่ฟังได้                |
+| Pi→ESP | `{"type":"state","value":"thinking"}`                             | ให้บอร์ดเปลี่ยนอนิเมชัน         |
+| Pi→ESP | `{"type":"tts_start"}` / binary PCM / `{"type":"tts_end"}`        | เสียงตอบ                        |
+| Pi→ESP | `{"type":"reply_text","text"}`                                    | ข้อความคำตอบ (ไว้แสดง subtitle) |
+| Pi→ESP | `{"type":"ota_check"}` / `{"type":"error","msg"}`                 | คำสั่งอื่น ๆ                    |
 
 - เสียง: PCM 16kHz 16-bit mono, chunk ละ 20–60ms (ใน LAN ใช้ raw PCM ได้เลย ถ้าอยากประหยัด bandwidth ค่อยเปลี่ยนเป็น Opus ทีหลัง)
 - ถ้าหลุด ให้ reconnect แบบ exponential backoff (1, 2, 4 ... สูงสุด 30 วิ)
 - ฝั่งบอร์ดเก็บ bridge URL + token ไว้ใน NVS (ตั้งค่าได้จากหน้า captive portal)
 
 ### 8.5 ฟังก์ชันฝั่ง ESP32
+
 ```c
 // audio_in
 esp_err_t audio_in_init(void);                 // I2S RX + codec init (ES8311 ถ้ายืนยันแล้ว)
@@ -304,6 +325,7 @@ void      buttons_init(void);                  // BOOT: กดค้าง = พ
 ```
 
 **วิธีเริ่มพูด:**
+
 - **Phase แรก:** Push-to-talk (กด BOOT ค้างเพื่อพูด ปล่อยเพื่อส่ง) เพราะง่ายและเสถียรที่สุด
 - **Phase หลัง:** Wake word ด้วย ESP-SR WakeNet (ใช้คำปลุกที่มีให้ในชุด หรือเทรนคำของตัวเอง) + VAD เพื่อหยุดฟังอัตโนมัติเมื่อเงียบ 0.8 วิ
 
@@ -317,19 +339,20 @@ void      buttons_init(void);                  // BOOT: กดค้าง = พ
 
 ### ธีม: “Orb” ลูกแก้วพลังงานตรงกลางจอ (วาดด้วยโค้ด ไม่ต้องใช้ไฟล์ภาพ)
 
-| สถานะ | อนิเมชัน | สีหลัก |
-|---|---|---|
-| BOOT | โลโก้ fade-in + ข้อความเวอร์ชัน | ขาว |
-| WIFI_PROVISIONING | QR ใหญ่ตรงกลาง + ข้อความ “สแกนเพื่อเชื่อม Wi-Fi” + ขอบกระพริบช้า ๆ | ฟ้า |
-| BRIDGE_CONNECTING | วงแหวนหมุน (spinner) | ฟ้าอ่อน |
-| IDLE | Orb “หายใจ” (ขยาย/หด ช้า ๆ รอบละ 3 วิ, glow จาง ๆ) + มีเวลาเล็ก ๆ ด้านบน | น้ำเงินม่วง |
-| LISTENING | Orb ขยาย + แถบคลื่นเสียงรอบวงที่ขยับตาม `audio_in_level()` | เขียวมิ้นต์ |
-| THINKING | อนุภาค 3–6 จุดโคจรรอบ Orb + Orb หมุน gradient | ม่วง/ชมพู |
-| SPEAKING | Orb เต้นตาม `audio_out_level()` + subtitle คำตอบเลื่อนด้านล่าง | ส้มทอง |
-| OTA_UPDATING | แถบ progress วงกลม + % | เหลือง |
-| ERROR | Orb สีแดงสั่นเบา ๆ + ข้อความสั้น | แดง |
+| สถานะ             | อนิเมชัน                                                                 | สีหลัก      |
+| ----------------- | ------------------------------------------------------------------------ | ----------- |
+| BOOT              | โลโก้ fade-in + ข้อความเวอร์ชัน                                          | ขาว         |
+| WIFI_PROVISIONING | QR ใหญ่ตรงกลาง + ข้อความ “สแกนเพื่อเชื่อม Wi-Fi” + ขอบกระพริบช้า ๆ       | ฟ้า         |
+| BRIDGE_CONNECTING | วงแหวนหมุน (spinner)                                                     | ฟ้าอ่อน     |
+| IDLE              | Orb “หายใจ” (ขยาย/หด ช้า ๆ รอบละ 3 วิ, glow จาง ๆ) + มีเวลาเล็ก ๆ ด้านบน | น้ำเงินม่วง |
+| LISTENING         | Orb ขยาย + แถบคลื่นเสียงรอบวงที่ขยับตาม `audio_in_level()`               | เขียวมิ้นต์ |
+| THINKING          | อนุภาค 3–6 จุดโคจรรอบ Orb + Orb หมุน gradient                            | ม่วง/ชมพู   |
+| SPEAKING          | Orb เต้นตาม `audio_out_level()` + subtitle คำตอบเลื่อนด้านล่าง           | ส้มทอง      |
+| OTA_UPDATING      | แถบ progress วงกลม + %                                                   | เหลือง      |
+| ERROR             | Orb สีแดงสั่นเบา ๆ + ข้อความสั้น                                         | แดง         |
 
 ### แนวทางเทคนิค
+
 - ใช้ `lv_anim_t` คุมค่า scale/opacity/angle และใช้ easing (`lv_anim_path_ease_in_out`) ให้การเคลื่อนไหวนุ่ม
 - เปลี่ยนสถานะด้วย **crossfade 200–300ms** ห้ามตัดภาพทันที
 - ทำ glow ด้วยวงกลมซ้อน 3–4 ชั้นที่ opacity ลดหลั่นกัน หรือใช้ `shadow` ของ LVGL
@@ -338,6 +361,7 @@ void      buttons_init(void);                  // BOOT: กดค้าง = พ
 - (ทางเลือก) ทำ “ตา” แบบหุ่นยนต์ที่กระพริบตอน IDLE เป็นธีมที่ 2 แล้วสลับได้ใน config
 
 ### ฟังก์ชัน
+
 ```c
 esp_err_t ui_init(void);                          // LCD + LVGL + backlight
 void      ui_show_state(app_state_t s);           // เรียกจาก app_set_state
@@ -354,17 +378,17 @@ void      ui_set_brightness(uint8_t pct);
 
 ## 10. ลำดับการทำงาน (Phases)
 
-| Phase | งาน | Acceptance |
-|---|---|---|
-| 0 | ยืนยัน pin/codec/จอ → `board_config.h` | จอแสดงสีได้, I2C scan เจอ codec |
-| 1 | Skeleton ESP-IDF + partition + LVGL + Orb IDLE | แฟลชผ่านสายแล้วเห็น Orb หายใจ |
-| 2 | `wifi_mgr` + QR provisioning | ผ่านเกณฑ์ข้อ 6 |
-| 3 | `ota_mgr` (push ก่อน) + rollback | ผ่านเกณฑ์ข้อ 7 **หลังจากนี้ห้ามใช้สายอีก** |
-| 4 | audio_in/out: loopback test (พูดแล้วเล่นเสียงกลับ) | เสียงชัด ไม่มีเสียงหอน/แตก |
-| 5 | Hermes API + bridge (ทดสอบด้วยไฟล์ wav จาก Mac ก่อน) | wav → ได้ข้อความตอบ + เสียง |
-| 6 | ws_client + push-to-talk ครบ loop | ผ่านเกณฑ์ข้อ 8 |
-| 7 | อนิเมชันครบทุกสถานะ + subtitle ไทย | ผ่านเกณฑ์ข้อ 9 |
-| 8 | Wake word + VAD, OTA แบบ pull, systemd services | ใช้งานได้โดยไม่ต้องกดปุ่ม รีบูต Pi แล้วทุกอย่างกลับมาเอง |
+| Phase | งาน                                                  | Acceptance                                               |
+| ----- | ---------------------------------------------------- | -------------------------------------------------------- |
+| 0     | ยืนยัน pin/codec/จอ → `board_config.h`               | จอแสดงสีได้, I2C scan เจอ codec                          |
+| 1     | Skeleton ESP-IDF + partition + LVGL + Orb IDLE       | แฟลชผ่านสายแล้วเห็น Orb หายใจ                            |
+| 2     | `wifi_mgr` + QR provisioning                         | ผ่านเกณฑ์ข้อ 6                                           |
+| 3     | `ota_mgr` (push ก่อน) + rollback                     | ผ่านเกณฑ์ข้อ 7 **หลังจากนี้ห้ามใช้สายอีก**               |
+| 4     | audio_in/out: loopback test (พูดแล้วเล่นเสียงกลับ)   | เสียงชัด ไม่มีเสียงหอน/แตก                               |
+| 5     | Hermes API + bridge (ทดสอบด้วยไฟล์ wav จาก Mac ก่อน) | wav → ได้ข้อความตอบ + เสียง                              |
+| 6     | ws_client + push-to-talk ครบ loop                    | ผ่านเกณฑ์ข้อ 8                                           |
+| 7     | อนิเมชันครบทุกสถานะ + subtitle ไทย                   | ผ่านเกณฑ์ข้อ 9                                           |
+| 8     | Wake word + VAD, OTA แบบ pull, systemd services      | ใช้งานได้โดยไม่ต้องกดปุ่ม รีบูต Pi แล้วทุกอย่างกลับมาเอง |
 
 ---
 
