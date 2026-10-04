@@ -45,3 +45,19 @@ async def split_sentences(deltas: AsyncIterator[str]) -> AsyncIterator[str]:
                 yield sentence.strip()
     if buf.strip():
         yield buf.strip()
+
+
+import re as _re
+
+# Hermes reports provider/model failures as ordinary reply text ("Model 'x' isn't available ...").
+# Read aloud by a Thai voice that is just noise, so recognise it and say something useful instead.
+_HERMES_ERROR = _re.compile(
+    r"isn'?t available|No active credentials|Error code: \d{3}|rate.?limit|hermes model|API call failed|"
+    r"model_not_found|insufficient_quota|Unauthorized|Invalid API key",
+    _re.IGNORECASE,
+)
+HERMES_ERROR_SPOKEN = "ตอนนี้ลูกเทพต่อกับโมเดลไม่ได้ค่ะ ลองใหม่อีกครั้งนะคะ"
+
+
+def looks_like_hermes_error(text: str) -> bool:
+    return bool(_HERMES_ERROR.search(text)) and not _re.search(r"[\u0E00-\u0E7F]", text)   # an error in English, no Thai in it

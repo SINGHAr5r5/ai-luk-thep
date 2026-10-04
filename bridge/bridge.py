@@ -3,6 +3,7 @@
 Protocol: see ../hermes-voice-box-plan.md section 8.4 and README.md in this folder.
 """
 import asyncio
+import base64
 import hmac
 import ipaddress
 import json
@@ -18,7 +19,8 @@ from websockets.exceptions import ConnectionClosed
 
 from hermes_client import HermesClient
 from stt import STT
-from text_utils import split_sentences, strip_markdown
+from text_render import TextRenderer
+from text_utils import HERMES_ERROR_SPOKEN, looks_like_hermes_error, split_sentences, strip_markdown
 from tts import TTS
 
 log = logging.getLogger("voice-bridge")
@@ -36,7 +38,7 @@ def load_env_files(paths: list[str]) -> dict[str, str]:
             if line and not line.startswith("#") and "=" in line:
                 k, v = line.split("=", 1)
                 env[k.strip()] = v.strip().strip('"').strip("'")
-    env.update({k: v for k, v in os.environ.items() if k in env or k.startswith(("API_SERVER_", "OPENAI_", "DEVICE_"))})
+    env.update({k: v for k, v in os.environ.items() if k in env or k.startswith(("API_SERVER_", "OPENAI_", "GROQ_", "DEVICE_"))})
     return env
 
 
@@ -70,13 +72,22 @@ class Bridge:
         self.tokens = [t.strip() for t in env.get("DEVICE_TOKENS", "").split(",") if t.strip()]
         if not self.tokens:
             sys.exit("DEVICE_TOKENS is empty; refusing to start")
-        for key in ("API_SERVER_KEY", "OPENAI_API_KEY"):
+        provider = cfg["stt"].get("provider", "openai")
+        stt_key_env = {"openai": "OPENAI_API_KEY", "groq": "GROQ_API_KEY"}.get(provider)   # local needs no key
+        for key in ["API_SERVER_KEY"] + ([stt_key_env] if stt_key_env else []):
             if not env.get(key):
                 sys.exit(f"{key} missing from secrets files")
 
-        self.stt = STT(cfg["stt"], env["OPENAI_API_KEY"], self.rate)
+        self.stt = STT(cfg["stt"], env.get(stt_key_env, "") if stt_key_env else "", self.rate)
         self.tts = TTS(cfg["tts"], self.rate)
         self.hermes = HermesClient(cfg["hermes"], env["API_SERVER_KEY"])
+        d = cfg.get("display", {})
+        self.stt_lines, self.reply_lines = int(d.get("stt_lines", 2)), int(d.get("reply_lines", 5))
+        try:   # text on the board's screen is optional: never let it stop the voice path
+            self.renderer = TextRenderer(int(d.get("width", 230)), int(d.get("font_size", 20)), int(d.get("line_height", 28)))
+        except Exception:
+            log.warning("screen text disabled (Pillow or font missing)", exc_info=True)
+            self.renderer = None
         self.filler_after = float(cfg["hermes"].get("thinking_filler_after_s", 4))
         self.filler_text = cfg["hermes"].get("thinking_filler_text", "")
         self.filler_pcm = b""
@@ -85,6 +96,18 @@ class Bridge:
     @staticmethod
     async def send_json(ws: ServerConnection, **msg) -> None:
         await ws.send(json.dumps(msg, ensure_ascii=False))
+
+    async def send_text_image(self, ws: ServerConnection, role: str, text: str, max_lines: int, keep: str) -> None:
+        """Shape the text here (Thai needs it) and send it to the board as an 8-bit alpha bitmap."""
+        if not self.renderer or not text.strip():
+            return
+        try:
+            w, h, data = await asyncio.to_thread(self.renderer.render, text, max_lines, keep)
+            await self.send_json(ws, type="text_image", role=role, w=w, h=h, a8=base64.b64encode(data).decode())
+        except ConnectionClosed:
+            raise
+        except Exception:
+            log.warning("could not render text for the screen", exc_info=True)
 
     # ---------- connection ----------
     async def handler(self, ws: ServerConnection) -> None:
@@ -188,19 +211,26 @@ class Bridge:
                 await self.send_json(ws, type="state", value="idle")
                 return
 
+            await self.send_text_image(ws, "stt", text, self.stt_lines, "head")   # what was heard, for the screen
             queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=4)
             first_ready = asyncio.Event()
             reply: list[str] = []
 
             async def produce() -> None:
+                hermes_failed = False
                 async for sentence in split_sentences(self.hermes.ask_stream(text, s.device_id)):
                     spoken = strip_markdown(sentence)
-                    if not spoken:
+                    if not spoken or hermes_failed:      # after an error, drop the rest of its English text
                         continue
+                    if looks_like_hermes_error(spoken):
+                        log.warning("[%s] Hermes returned an error as its reply: %s", s.device_id, spoken[:200])
+                        hermes_failed = True
+                        spoken = HERMES_ERROR_SPOKEN
                     reply.append(spoken)
                     audio = await self.tts.synth(spoken)
                     first_ready.set()
                     await self.send_json(ws, type="reply_text", text=spoken, final=False)
+                    await self.send_text_image(ws, "reply", " ".join(reply), self.reply_lines, "tail")
                     await queue.put(audio)
                 first_ready.set()
                 await queue.put(None)

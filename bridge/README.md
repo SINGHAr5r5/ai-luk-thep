@@ -42,6 +42,7 @@ Pi → Board
 | `{"type":"reply_text","text","final":false}` | **one per spoken sentence**, sent just before its audio (subtitle) |
 | `{"type":"reply_text","text","final":true}` | whole reply at the end |
 | `{"type":"tts_start"}`, binary PCM, `{"type":"tts_end"}` | spoken reply |
+| `{"type":"text_image","role":"stt"\|"reply","w","h","a8"}` | **added**: text for the screen, shaped on the Pi (Thai) and sent as an A8 bitmap, `a8` = base64 of w*h alpha bytes. `stt` = what was heard (sent once per turn), `reply` = the reply so far, last lines only, re-sent after each spoken sentence |
 | `{"type":"error","msg","stage"?}` | short Thai message; details only in the Pi log |
 
 Conversation memory is kept by Hermes (`conversation` = `voicebox-<device_id>-<start>`); a new one starts after 10 min idle or on `reset`.

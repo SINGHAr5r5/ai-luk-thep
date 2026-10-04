@@ -21,15 +21,23 @@ hermes:
   thinking_filler_text: ขอคิดแป๊บนึงนะ
 
 stt:
-  provider: openai
-  model: gpt-4o-mini-transcribe
+  provider: groq                # free tier, ~1 s. Others: "openai" (OPENAI_API_KEY), "local" (faster-whisper, slow on a Pi 4)
+  model: whisper-large-v3-turbo # used by groq/openai; for local: small (accurate, ~20 s) or base (~7 s, weak at Thai)
   language: th
   min_audio_ms: 300
+  # local only: compute_type: int8, cpu_threads: 4, beam_size: 1
 
 tts:
   provider: edge
   voice: th-TH-PremwadeeNeural   # or th-TH-NiwatNeural
   rate: "+0%"
+
+display:                         # text shown on the board's 240x240 screen (rendered here, sent as bitmaps)
+  width: 220                     # fits inside the 232 px wide cards on the screen
+  font_size: 19
+  line_height: 26
+  stt_lines: 2                   # what was heard: first N lines
+  reply_lines: 4                 # the reply: last N lines, scrolls as it is spoken
 
 audio:
   sample_rate: 16000
