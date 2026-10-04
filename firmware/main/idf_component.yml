@@ -1,0 +1,5 @@
+dependencies:
+  lvgl/lvgl: "^9.2.0"
+  espressif/esp_lvgl_port: "^2.6.0"
+  espressif/mdns: "^1.4.0"
+  espressif/esp_codec_dev: "^1.4.0"

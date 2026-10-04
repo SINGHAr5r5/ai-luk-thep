@@ -1,0 +1,6 @@
+.pio/
+sdkconfig.usb
+managed_components/
+dependencies.lock
+secrets.*
+.env

@@ -1,0 +1,4 @@
+websockets>=14
+openai>=1.60
+edge-tts>=7
+PyYAML>=6

@@ -1,0 +1,38 @@
+# Voice bridge config (non-secret). Secrets are read from env files listed under `secrets`.
+server:
+  host: 0.0.0.0          # only private-LAN and loopback clients are accepted (see bridge.py)
+  port: 8765
+  path: /ws
+
+secrets:
+  # API_SERVER_KEY (Hermes) and OPENAI_API_KEY (STT) come from here
+  - ~/.hermes/.env
+  # DEVICE_TOKENS=comma,separated,tokens
+  - ~/voice-bridge/.env
+
+hermes:
+  base_url: http://127.0.0.1:8642/v1
+  model: hermes-agent
+  instructions: >-
+    คุณกำลังคุยผ่านลำโพงด้วยเสียง ตอบเป็นภาษาพูด สั้น กระชับ เป็นประโยคธรรมดา
+    ห้ามใช้ markdown, bullet, ตาราง, โค้ด, ลิงก์ หรือ emoji
+  session_idle_minutes: 10
+  thinking_filler_after_s: 4
+  thinking_filler_text: ขอคิดแป๊บนึงนะ
+
+stt:
+  provider: openai
+  model: gpt-4o-mini-transcribe
+  language: th
+  min_audio_ms: 300
+
+tts:
+  provider: edge
+  voice: th-TH-PremwadeeNeural   # or th-TH-NiwatNeural
+  rate: "+0%"
+
+audio:
+  sample_rate: 16000
+  max_utterance_s: 60
+  chunk_ms: 40                   # size of PCM frames sent to the board
+  max_lead_s: 0.6                # how far ahead of real time we may push audio

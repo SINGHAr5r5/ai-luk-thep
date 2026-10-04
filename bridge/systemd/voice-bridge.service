@@ -1,0 +1,14 @@
+[Unit]
+Description=Hermes voice bridge (board <-> STT/Hermes/TTS)
+After=hermes-gateway.service
+Wants=hermes-gateway.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/voice-bridge
+ExecStart=%h/voice-bridge/venv/bin/python %h/voice-bridge/bridge.py %h/voice-bridge/config.yaml
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
