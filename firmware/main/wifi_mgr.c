@@ -306,6 +306,7 @@ static const char PAGE[] =
 "<label>หรือพิมพ์ชื่อ Wi-Fi เอง</label><input id=cu autocapitalize=off>"
 "<label>รหัสผ่าน Wi-Fi</label><input id=pw type=password>"
 "<label>Bridge URL (ไม่บังคับ)</label><input id=br placeholder='ws://192.168.1.57:8765/ws' autocapitalize=off>"
+"<label>Bridge token (ไม่บังคับ)</label><input id=bt type=password autocapitalize=off>"
 "<button id=go type=button onclick=save()>ทดสอบและบันทึก</button><div id=m></div>"
 "<script>"
 "const $=i=>document.getElementById(i);"
@@ -314,7 +315,7 @@ static const char PAGE[] =
 "'<option>'+x.s.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</option>').join('')||'<option value=\"\">(ไม่พบ Wi-Fi)</option>'}catch(e){}}"
 "async function save(){const ssid=$('cu').value||$('ss').value;if(!ssid){msg('er','กรุณาเลือกหรือพิมพ์ชื่อ Wi-Fi');return}"
 "$('go').disabled=true;msg('wt','กำลังทดสอบการเชื่อมต่อ...');"
-"const b='ssid='+encodeURIComponent(ssid)+'&pass='+encodeURIComponent($('pw').value)+'&bridge='+encodeURIComponent($('br').value);"
+"const b='ssid='+encodeURIComponent(ssid)+'&pass='+encodeURIComponent($('pw').value)+'&bridge='+encodeURIComponent($('br').value)+'&btoken='+encodeURIComponent($('bt').value);"
 "try{await fetch('/save',{method:'POST',body:b})}catch(e){}"
 "let lost=0;const t=setInterval(async()=>{try{const s=await(await fetch('/status')).json();lost=0;"
 "if(s.state==2){clearInterval(t);msg('ok','เชื่อมต่อสำเร็จ! บอร์ดกำลังรีสตาร์ท');}"
@@ -344,7 +345,7 @@ static esp_err_t h_status(httpd_req_t *r)
     return httpd_resp_send(r, out, HTTPD_RESP_USE_STRLEN);
 }
 
-typedef struct { char ssid[33], pass[65], bridge[128]; } test_args_t;
+typedef struct { char ssid[33], pass[65], bridge[128], btoken[96]; } test_args_t;
 
 static void test_task(void *arg)
 {
@@ -354,6 +355,7 @@ static void test_task(void *arg)
     if (err == ESP_OK) {
         wifi_mgr_save_credentials(a->ssid, a->pass);
         if (a->bridge[0]) settings_set(SETTING_BRIDGE_URL, a->bridge);
+        if (a->btoken[0]) settings_set(SETTING_BRIDGE_TOKEN, a->btoken);
         s_test_state = 2;
         ui_set_caption(UI_CAP_CONNECTED);
         vTaskDelay(pdMS_TO_TICKS(4000));   // let the browser read the result
@@ -382,7 +384,7 @@ static void test_task(void *arg)
 
 static esp_err_t h_save(httpd_req_t *r)
 {
-    char body[320];
+    char body[700];
     int n = httpd_req_recv(r, body, sizeof(body) - 1);
     if (n <= 0 || s_test_state == 1) {
         httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, "bad request");
@@ -396,6 +398,8 @@ static esp_err_t h_save(httpd_req_t *r)
     if (httpd_query_key_value(body, "pass", tmp, sizeof(a->pass)) == ESP_OK) { url_decode(tmp); strlcpy(a->pass, tmp, sizeof(a->pass)); }
     tmp[0] = 0;
     if (httpd_query_key_value(body, "bridge", tmp, sizeof(a->bridge)) == ESP_OK) { url_decode(tmp); strlcpy(a->bridge, tmp, sizeof(a->bridge)); }
+    tmp[0] = 0;
+    if (httpd_query_key_value(body, "btoken", tmp, sizeof(a->btoken)) == ESP_OK) { url_decode(tmp); strlcpy(a->btoken, tmp, sizeof(a->btoken)); }
     if (!a->ssid[0]) {
         free(a);
         httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, "ssid required");

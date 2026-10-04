@@ -1,4 +1,5 @@
 #include "ui.h"
+#include <stdlib.h>
 #include "ui_anim.h"
 #include "board_config.h"
 #include "driver/ledc.h"
@@ -154,5 +155,29 @@ void ui_set_ota_progress(int pct)
     if (!s_disp) return;
     lvgl_port_lock(0);
     ui_anim_set_ota_progress(pct);
+    lvgl_port_unlock();
+}
+
+void ui_show_text(const char *role, int w, int h, uint8_t *a8)
+{
+    if (!s_disp) { free(a8); return; }
+    lvgl_port_lock(0);
+    ui_anim_show_text(role, w, h, a8);
+    lvgl_port_unlock();
+}
+
+void ui_clear_text(void)
+{
+    if (!s_disp) return;
+    lvgl_port_lock(0);
+    ui_anim_clear_text();
+    lvgl_port_unlock();
+}
+
+void ui_set_battery(int level, bool charging, bool present)
+{
+    if (!s_disp) return;
+    lvgl_port_lock(0);
+    ui_anim_set_battery(level, charging, present);
     lvgl_port_unlock();
 }

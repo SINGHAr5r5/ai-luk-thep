@@ -8,7 +8,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-#define LONG_PRESS_MS 5000
+// BOOT is the push-to-talk key (up to 8 s per utterance), so the Wi-Fi reset hold must be clearly longer.
+#define LONG_PRESS_MS 12000
 static const char *TAG = "buttons";
 static button_cb_t s_on_press, s_on_release;
 

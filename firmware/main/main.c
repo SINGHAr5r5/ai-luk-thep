@@ -17,6 +17,11 @@
 #include "audio_in.h"
 #include "audio_out.h"
 #include "audio_test.h"
+#include "voice.h"
+#include "battery.h"
+#include <stdlib.h>
+#include <time.h>
+#include "esp_netif_sntp.h"
 
 static const char *TAG = "main";
 static volatile app_state_t s_state = ST_BOOT;
@@ -73,6 +78,8 @@ void app_main(void)
     ESP_LOGI(TAG, "firmware %s", ota_mgr_running_version());
 
     ESP_ERROR_CHECK(ui_init());
+    battery_init();
+    ui_set_battery(battery_level(), battery_charging(), battery_present());
     app_set_state(ST_BOOT);
 
 #ifdef OTA_TEST_BREAK
@@ -101,9 +108,18 @@ void app_main(void)
 
     if (online) {
         wifi_mgr_start_mdns("ai-luk-thep");
+        setenv("TZ", "ICT-7", 1);                      // Thailand, for the clock in the top bar
+        tzset();
+        esp_sntp_config_t sntp = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
+        esp_netif_sntp_init(&sntp);
         ota_mgr_start_push_server();
-        app_enter_idle();   // Phase 5/6: BRIDGE_CONNECTING goes here
-        // Phase 6 will add "bridge connected" to this condition; for now Wi-Fi + push server is healthy.
+        if (voice_configured()) {
+            voice_start();   // goes IDLE by itself once the bridge accepts the hello
+        } else {
+            app_enter_idle();
+        }
+        // Healthy = Wi-Fi up and the OTA push server running. The bridge is deliberately NOT part of this: the
+        // Pi being down must not roll back good firmware, and OTA reachability is what rollback protects.
         ota_mgr_mark_valid_if_healthy();
     } else {
         app_set_state(ST_WIFI_PROVISIONING);
@@ -114,6 +130,7 @@ void app_main(void)
     bool warned = false;
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        ui_set_battery(battery_level(), battery_charging(), battery_present());
         if (!online) continue;
         if (wifi_mgr_down_seconds() > WIFI_LOST_WARN_S && !warned) {
             warned = true;

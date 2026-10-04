@@ -10,3 +10,6 @@ void ui_anim_show_qr(const char *payload, ui_caption_t cap);
 void ui_anim_set_caption(ui_caption_t cap);
 void ui_anim_set_status(const char *text);
 void ui_anim_set_ota_progress(int pct);
+void ui_anim_show_text(const char *role, int w, int h, uint8_t *a8);
+void ui_anim_clear_text(void);
+void ui_anim_set_battery(int level, bool charging, bool present);
