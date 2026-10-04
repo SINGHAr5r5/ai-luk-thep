@@ -74,7 +74,7 @@ async def main() -> None:
             for i in range(0, len(pcm), 1280):
                 await ws.send(pcm[i:i + 1280])
             await ws.send(json.dumps({"type": "listen_stop"}))
-        t_stop = time.monotonic()
+        t_stop = time.monotonic()   # end of the question (both --text and audio modes)
         seen_turn = False
         async for msg in ws:
             if isinstance(msg, bytes):

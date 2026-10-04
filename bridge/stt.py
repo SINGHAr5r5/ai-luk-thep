@@ -19,7 +19,7 @@ class STT:
     def __init__(self, cfg: dict, api_key: str, sample_rate: int = 16000):
         if cfg.get("provider", "openai") != "openai":
             raise ValueError(f"unsupported STT provider: {cfg.get('provider')}")
-        self.client = AsyncOpenAI(api_key=api_key)
+        self.client = AsyncOpenAI(api_key=api_key, timeout=30, max_retries=1)
         self.model = cfg.get("model", "gpt-4o-mini-transcribe")
         self.language = cfg.get("language", "th")
         self.sample_rate = sample_rate
