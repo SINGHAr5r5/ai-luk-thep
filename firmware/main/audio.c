@@ -70,10 +70,11 @@ esp_err_t audio_init(void)
 
     esp_codec_dev_sample_info_t fs = {.sample_rate = AUDIO_RATE, .channel = 1, .bits_per_sample = 16};
     if (esp_codec_dev_open(s_dev, &fs) != ESP_CODEC_DEV_OK) { ESP_LOGE(TAG, "codec open failed"); return ESP_FAIL; }
-    // Tuned with the console `selftest` sweep: no clipping, clean 1 kHz at vol 40 / gain 18 with the speaker
-    // next to the mic (worst case). Real speech sits further away, hence a little more input gain.
-    esp_codec_dev_set_in_gain(s_dev, 24.0f);
-    esp_codec_dev_set_out_vol(s_dev, 50);
+    // The bench sweep (console `selftest`, speaker right next to the mic) stayed clean up to vol 40 / gain 18,
+    // but in real use the playback was too quiet at vol 50 / gain 24, so these are raised (user-requested).
+    // Trade-off: +12 dB of mic gain also raises the noise floor, watch the VAD threshold in audio_in.c.
+    esp_codec_dev_set_in_gain(s_dev, 36.0f);
+    esp_codec_dev_set_out_vol(s_dev, 80);
     ESP_LOGI(TAG, "ES8311 ready: %d Hz, 16-bit, mono", AUDIO_RATE);
     return ESP_OK;
 }
